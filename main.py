@@ -2,8 +2,7 @@ import lib
 import json
 import csv
 import re
-#remove this after testing
-import time
+import datetime
 
 
 class RQLAsync():
@@ -12,6 +11,7 @@ class RQLAsync():
         self.csv_writer = lib.CsvWriter()
         self.pc_sess = lib.PCSession(self.config.pc_user, self.config.pc_pass, self.config.pc_cust,
                                      self.config.pc_api_base)
+        self.csvheader = ["Resource Name", "Service", "Account", "Region", "Last Modified"]
 
     def get_pcs_accounts(self,cloud_type):
         #pull in cloud accounts but only the relavant ones for the specified RQL
@@ -29,7 +29,6 @@ class RQLAsync():
     def rql_search(self):
         results = []
         body_params= {}
-        page_number = 1
 
         #determine which cloud type the query is set to use
         match = re.search('\w*\s*=\s*\'(\w+)', self.config.pc_rql)
@@ -46,40 +45,60 @@ class RQLAsync():
                 #needed to use .replace with literal to backspace single quotes in account names
                 mod_rql = self.insert_cloud_acct(self.config.pc_rql,' cloud.account = ' + '\'' + acct['name'].replace(r"'",r"\'") + '\'' + ' AND',pos)
 
-                while page_number == 1 or 'pageToken' in body_params:
-                    self.url = "https://" + self.config.pc_api_base + "/search/config"
-                    self.pc_sess.authenticate_client()
-                    payload = json.dumps(
-                        {"withResourceJson":"false",
-                        "limit": 100,
-                        "timeRange": {
-                            "type":"relative",
-                            "value": {
-                                "unit": "hour",
-                                "amount": 24
-                            },
-                            "relativeTimeType": "BACKWARD"
+                self.url = "https://" + self.config.pc_api_base + "/search/config"
+                self.pc_sess.authenticate_client()
+                payload = json.dumps(
+                    {"withResourceJson":"false",
+                    "limit": 100,
+                    "timeRange": {
+                        "type":"relative",
+                        "value": {
+                            "unit": "hour",
+                            "amount": 24
                         },
-                        "query": mod_rql
-                    })
+                        "relativeTimeType": "BACKWARD"
+                    },
+                    "query": mod_rql
+                })
 
-                    response = self.pc_sess.client.post(self.url,payload)
-                    if response == '400':
-                        print('Something appears to be wrong with RQL query')
-                    else:
-                        resp_json = response.json()
-                        if 'items' in resp_json['data']:
-                            results.extend(resp_json['data']['items'])
-                        if 'nextPageToken' in resp_json:
-                            body_params['pageToken'] = resp_json['nextPageToken']
+                response = self.pc_sess.client.post(self.url,payload)
+                if response == '400':
+                    print('Something appears to be wrong with RQL query')
+                else:
+                    resp_json = response.json()
+                    if 'items' in resp_json['data']:
+                        results.extend(resp_json['data']['items'])
+                    #add dynamic columns to csvheader
+                    if 'dynamicColumns' in resp_json['data']: 
+                        for col in resp_json['data']['dynamicColumns']:
+                            if not col in self.csvheader:
+                                self.csvheader.append(col)
+                    if 'nextPageToken' in resp_json['data']:
+                        body_params['pageToken'] = resp_json['data']['nextPageToken']
+                        body_params['withResourceJson'] = False
+                        body_params['limit'] = 100
+                    while 'pageToken' in body_params:
+                        self.url = "https://" + self.config.pc_api_base + "/search/config/page"
+                        self.pc_sess.authenticate_client()
+                        paged_response = self.pc_sess.client.post(self.url,json=body_params)
+                        paged_resp_json = paged_response.json()
+                        if 'items' in paged_resp_json:
+                            results.extend(paged_resp_json['items'])
+                        if 'nextPageToken' in paged_resp_json:
+                            body_params['pageToken'] = paged_resp_json['nextPageToken']
                         else:
                             body_params.pop('pageToken', None)
 
-                        page_number += 1
 
-            for res in results:
-                print(res)
-                time.sleep(60) 
+        self.csv_writer.write([self.csvheader])
+        count = 0
+        for res in results:
+            count += 1
+            csvdata = [res['name'], res['service'], res['accountName'], res['regionName'], datetime.datetime.fromtimestamp(res['insertTs']/1000.).strftime('%Y-%m-%d %H:%M:%S')]
+            #if 'dynamicData' in res:
+            self.csv_writer.append([csvdata])
+
+        print(count)
 
     def run(self):
         self.rql_search()
