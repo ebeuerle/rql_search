@@ -93,10 +93,19 @@ class RQLAsync():
         self.csv_writer.write([self.csvheader])
         count = 0
         for res in results:
-            count += 1
-            csvdata = [res['name'], res['service'], res['accountName'], res['regionName'], datetime.datetime.fromtimestamp(res['insertTs']/1000.).strftime('%Y-%m-%d %H:%M:%S')]
-            #if 'dynamicData' in res:
-            self.csv_writer.append([csvdata])
+            #if res['name'] == "Nexus-repo":
+                count += 1
+                newdata = []
+                if 'dynamicData' in res:
+                    for ele in res['dynamicData']:
+                        csvdata = [res['name'], res['service'], res['accountName'], res['regionName'], datetime.datetime.fromtimestamp(res['insertTs']/1000.).strftime('%Y-%m-%d %H:%M:%S')]
+                        for item in res['dynamicData'][ele]:
+                            newdata.append(item)
+
+                    csvdata.append(str(newdata))
+                else:
+                    csvdata = [res['name'], res['service'], res['accountName'], res['regionName'], datetime.datetime.fromtimestamp(res['insertTs']/1000.).strftime('%Y-%m-%d %H:%M:%S')]
+                self.csv_writer.append([csvdata])
 
         print(count)
 
