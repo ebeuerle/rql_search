@@ -1,4 +1,4 @@
-#Prisma Cloud RQL search to CSV 
+# Prisma Cloud RQL search to CSV 
 
 Version: *1.0*
 Author: *Eddie Beuerlein*
