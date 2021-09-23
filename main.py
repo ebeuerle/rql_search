@@ -96,9 +96,9 @@ class RQLAsync():
             #if res['name'] == "Nexus-repo":
                 count += 1
                 newdata = []
+                csvdata = [res['name'], res['service'], res['accountName'], res['regionName'], datetime.datetime.fromtimestamp(res['insertTs']/1000.).strftime('%Y-%m-%d %H:%M:%S')]
                 if 'dynamicData' in res:
                     for ele in res['dynamicData']:
-                        csvdata = [res['name'], res['service'], res['accountName'], res['regionName'], datetime.datetime.fromtimestamp(res['insertTs']/1000.).strftime('%Y-%m-%d %H:%M:%S')]
                         for item in res['dynamicData'][ele]:
                             newdata.append(item)
 
